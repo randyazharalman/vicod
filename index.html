@@ -1,0 +1,202 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Perfect Cast Practice Tool</title>
+<style>
+  body { font-family: system-ui, -apple-system, Arial; max-width:900px; margin:20px auto; padding:10px; }
+  .board { position: relative; height: 60px; background:#222; border-radius:8px; margin:12px 0; overflow: hidden; }
+  .bar { position:absolute; left:0; top:0; bottom:0; width:6px; background: linear-gradient(#fff,#aaa); border-radius:4px; transform: translateX(0); }
+  .target { position:absolute; top:6px; bottom:6px; background: rgba(0,200,100,0.25); border:2px solid rgba(0,200,100,0.6); border-radius:6px; }
+  .controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  label { font-size:14px; }
+  button { padding:8px 12px; border-radius:6px; }
+  .stats { margin-top:10px; white-space:pre-wrap; background:#f6f6f6; padding:10px; border-radius:6px; }
+  .small { font-size:13px; color:#555; }
+</style>
+</head>
+<body>
+  <h2>Perfect Cast Practice Tool (Safe Trainer)</h2>
+  <p class="small">Latihan timing klik untuk mendapatkan "Perfect". Ini **tidak** meng-klik di game — hanya alat latihan.</p>
+
+  <div class="controls">
+    <label>Speed (ms per full sweep) 
+      <input id="speed" type="number" value="1200" min="200" step="50" /> ms
+    </label>
+
+    <label>Target width (px)
+      <input id="targetWidth" type="number" value="60" min="6" step="1" />
+    </label>
+
+    <label>Bar width (px)
+      <input id="barWidth" type="number" value="8" min="2" step="1" />
+    </label>
+
+    <label>Direction
+      <select id="dir"><option value="lr">Left→Right</option><option value="rl">Right→Left</option></select>
+    </label>
+
+    <label><input id="audioToggle" type="checkbox" /> Audio cue on perfect</label>
+
+    <button id="startStop">Start</button>
+    <button id="reset">Reset Stats</button>
+  </div>
+
+  <div style="margin-top:14px;">
+    <div class="board" id="board" tabindex="0">
+      <div id="target" class="target"></div>
+      <div id="bar" class="bar"></div>
+    </div>
+    <div class="small">Tekan <b>Space</b> atau klik area untuk mencoba. Target area berwarna hijau.</div>
+  </div>
+
+  <div class="stats" id="stats">
+    Stats: not started
+  </div>
+
+<script>
+(function(){
+  const board = document.getElementById('board');
+  const bar = document.getElementById('bar');
+  const target = document.getElementById('target');
+  const startStop = document.getElementById('startStop');
+  const resetBtn = document.getElementById('reset');
+  const statsEl = document.getElementById('stats');
+
+  let running = false;
+  let lastTime = null;
+  let pos = 0; // 0..1
+  let dir = 1;
+  let speed = 1200;
+  let barWidth = 8;
+  let targetW = 60;
+  let barWpx = barWidth;
+  let boardW = 800;
+  let audioOn = false;
+  const audio = new Audio();
+  // sine beep
+  audio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=";
+
+  // stats
+  let total = 0, perfects = 0, hits = 0, streak = 0, bestStreak = 0;
+  function updateStats() {
+    const pctPerfect = total ? (perfects/total*100).toFixed(2) : "0.00";
+    const pctHit = total ? (hits/total*100).toFixed(2) : "0.00";
+    statsEl.textContent = `Total attempts: ${total}\nHits (inside target): ${hits} (${pctHit}%)\nPerfects (small center zone): ${perfects} (${pctPerfect}%)\nCurrent streak: ${streak}\nBest streak: ${bestStreak}\n\nControls: Space or Click to attempt. Adjust speed & target width.`;
+  }
+
+  function resizeBoard() {
+    // set board width to container width
+    const rect = board.getBoundingClientRect();
+    boardW = rect.width;
+    bar.style.width = barWpx + 'px';
+    // place target centered vertical; width set by input
+    const tw = Math.min(boardW-4, targetW);
+    target.style.width = tw + 'px';
+    // center target
+    target.style.left = ((boardW - tw)/2) + 'px';
+  }
+
+  function setInputs() {
+    speed = parseInt(document.getElementById('speed').value,10) || 1200;
+    targetW = parseInt(document.getElementById('targetWidth').value,10) || 60;
+    barWpx = parseInt(document.getElementById('barWidth').value,10) || 8;
+    const d = document.getElementById('dir').value;
+    dir = (d === 'lr') ? 1 : -1;
+    audioOn = document.getElementById('audioToggle').checked;
+    resizeBoard();
+  }
+
+  window.addEventListener('resize', resizeBoard);
+  setInputs();
+  resizeBoard();
+
+  function tick(t) {
+    if (!running) return;
+    if (!lastTime) lastTime = t;
+    const dt = t - lastTime;
+    lastTime = t;
+    // pos increment per ms: 1 full sweep = speed ms, but we'll do back and forth so pos in [0,1] using pingpong
+    const delta = dt / speed;
+    // move pos
+    pos += delta;
+    // pingpong
+    const cycle = pos % 2; // 0..2
+    let interp = cycle;
+    if (cycle > 1) interp = 2 - cycle;
+    // apply direction
+    const x = (dir === 1) ? interp : (1 - interp);
+    const px = x * (boardW - barWpx);
+    bar.style.transform = `translateX(${px}px)`;
+    requestAnimationFrame(tick);
+  }
+
+  function start() {
+    if (running) return;
+    setInputs();
+    running = true;
+    lastTime = null;
+    startStop.textContent = 'Stop';
+    requestAnimationFrame(tick);
+  }
+  function stop() {
+    running = false;
+    startStop.textContent = 'Start';
+  }
+
+  startStop.addEventListener('click', ()=> {
+    if (running) stop(); else start();
+  });
+
+  resetBtn.addEventListener('click', ()=> {
+    total = perfects = hits = streak = bestStreak = 0;
+    updateStats();
+  });
+
+  function attempt() {
+    // compute bar center x and target region
+    const barRect = bar.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const barCenter = barRect.left + barRect.width/2;
+    total += 1;
+    let inside = (barCenter >= targetRect.left && barCenter <= targetRect.right);
+    if (inside) {
+      hits += 1;
+      // define "perfect" as within center 30% of target
+      const centerLeft = targetRect.left + (targetRect.width*0.35);
+      const centerRight = targetRect.right - (targetRect.width*0.35);
+      const isPerfect = (barCenter >= centerLeft && barCenter <= centerRight);
+      if (isPerfect) {
+        perfects += 1;
+        streak += 1;
+        if (streak > bestStreak) bestStreak = streak;
+        if (audioOn) audio.play().catch(()=>{});
+      } else {
+        streak = 0;
+      }
+    } else {
+      streak = 0;
+    }
+    updateStats();
+  }
+
+  // click or space
+  board.addEventListener('click', ()=> attempt());
+  window.addEventListener('keydown', (e)=> {
+    if (e.code === 'Space') { e.preventDefault(); attempt(); }
+  });
+
+  // initialize stats display
+  updateStats();
+  // init input listeners
+  document.getElementById('speed').addEventListener('change', ()=> setInputs());
+  document.getElementById('targetWidth').addEventListener('change', ()=> setInputs());
+  document.getElementById('barWidth').addEventListener('change', ()=> setInputs());
+  document.getElementById('dir').addEventListener('change', ()=> setInputs());
+  document.getElementById('audioToggle').addEventListener('change', ()=> setInputs());
+  // focus board for keyboard
+  board.addEventListener('mouseenter', ()=> board.focus());
+})();
+</script>
+</body>
+</html>
