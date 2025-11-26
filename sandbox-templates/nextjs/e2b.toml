@@ -11,7 +11,6 @@
 # const sandbox = await Sandbox.create('vicod-nextjs-test')
 
 team_id = "6f7e9854-c3fa-4eb2-ab0b-0781f0aac873"
-start_cmd = "/home/user/compile_page.sh"
 dockerfile = "e2b.Dockerfile"
 template_name = "vicod-nextjs-test"
 template_id = "z4y0oy23me4f4gdfnnyx"
